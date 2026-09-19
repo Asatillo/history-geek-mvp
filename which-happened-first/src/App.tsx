@@ -116,22 +116,11 @@ export default function App() {
             <p className={sectionLabel}>A chronology game</p>
             <h1 className="font-display text-4xl sm:text-5xl tracking-tight mt-3">Which Happened First?</h1>
             <p className="text-stone-300 mt-4">Four events. Thirty seconds. Put them in order.</p>
-            <div className="flex gap-3 mt-8">
+            <div className="mt-8">
               <button type="button" className={btnPrimary} onClick={start}>Start</button>
-              <button
-                type="button"
-                className={btnGhost}
-                onClick={() =>
-                  document.getElementById('leaderboard')?.scrollIntoView({ behavior: 'smooth' })
-                }
-              >
-                Leaderboard
-              </button>
             </div>
 
             <div className="border-t border-stone-700 mt-12 pt-10 space-y-10">
-              <Leaderboard playerScore={lastScore} />
-
               <section>
                 <p className={sectionLabel}>How it works</p>
                 <div className="grid sm:grid-cols-3 gap-6 mt-4">
@@ -174,6 +163,8 @@ export default function App() {
                   are shown; the dates are revealed after you answer.
                 </p>
               </section>
+
+              <Leaderboard playerScore={lastScore} />
 
               <p className="text-xs text-stone-500">
                 No account needed · Runs entirely in your browser

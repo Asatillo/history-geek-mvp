@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+@theme {
+  --font-display: Georgia, "Iowan Old Style", "Palatino Linotype", "Times New Roman", serif;
+}
+
 body {
-  background: #0f172a;
+  background: #0c0a09;
 }

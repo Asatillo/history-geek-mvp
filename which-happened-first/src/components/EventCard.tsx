@@ -13,48 +13,56 @@ type Props = {
 export default function EventCard({ event, index, total, revealed, correct, onUp, onDown }: Props) {
   const revealStyle = revealed
     ? correct
-      ? 'border-2 border-emerald-500 bg-emerald-500/10'
-      : 'border-2 border-rose-500 bg-rose-500/10'
-    : 'border-2 border-transparent';
+      ? 'border-emerald-600 bg-emerald-950/50'
+      : 'border-red-700 bg-red-950/50'
+    : 'border-stone-800 bg-stone-900';
+
+  const arrow = (dir: -1 | 1, disabled: boolean, label: string) => (
+    <button
+      type="button"
+      onClick={dir === -1 ? onUp : onDown}
+      disabled={disabled}
+      aria-label={label}
+      className={`group w-11 h-11 flex items-center justify-center ${
+        disabled ? 'opacity-25 cursor-not-allowed' : ''
+      }`}
+    >
+      <span
+        className={`w-10 h-10 flex items-center justify-center border border-stone-800 rounded-sm text-stone-400 text-sm ${
+          disabled ? '' : 'group-hover:text-stone-100 group-hover:border-stone-600'}`}
+      >{dir === -1 ? '▲' : '▼'}</span>
+    </button>
+  );
 
   return (
     <div
-      className={`rounded-xl bg-slate-800 ${revealStyle} transition-all duration-300 flex items-center gap-3 p-3`}
+      data-testid="card"
+      data-correct={revealed ? String(Boolean(correct)) : undefined}
+      className={`rounded-md border px-4 py-3 transition-colors duration-300 flex items-center gap-4 ${revealStyle}`}
     >
-      <div className="w-8 h-8 shrink-0 rounded-full bg-slate-700 flex items-center justify-center text-sm font-bold text-slate-300">
+      <div className="font-display text-stone-500 text-lg w-6 shrink-0 tabular-nums">
         {index + 1}
       </div>
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="text-3xl">{event.emoji}</span>
-          <span className="text-lg font-semibold leading-snug">{event.title}</span>
+        <div className="flex items-center gap-3">
+          <span className="text-2xl">{event.emoji}</span>
+          <span
+            data-testid="card-title"
+            className="text-base sm:text-lg font-medium text-stone-100 leading-snug"
+          >
+            {event.title}
+          </span>
         </div>
-        {revealed && <div className="text-slate-300 text-sm mt-1 ml-11">{event.label}</div>}
+        {revealed && (
+          <div data-testid="card-date" className="font-display text-sm text-amber-500/90 mt-1 ml-9">
+            {event.label}
+          </div>
+        )}
       </div>
       {!revealed && (
         <div className="flex flex-col shrink-0">
-          <button
-            type="button"
-            onClick={onUp}
-            disabled={index === 0}
-            aria-label="Move up"
-            className={`min-w-[44px] min-h-[44px] flex items-center justify-center text-xl ${
-              index === 0 ? 'opacity-30 cursor-not-allowed' : 'hover:text-indigo-300'
-            }`}
-          >
-            ▲
-          </button>
-          <button
-            type="button"
-            onClick={onDown}
-            disabled={index === total - 1}
-            aria-label="Move down"
-            className={`min-w-[44px] min-h-[44px] flex items-center justify-center text-xl ${
-              index === total - 1 ? 'opacity-30 cursor-not-allowed' : 'hover:text-indigo-300'
-            }`}
-          >
-            ▼
-          </button>
+          {arrow(-1, index === 0, 'Move up')}
+          {arrow(1, index === total - 1, 'Move down')}
         </div>
       )}
     </div>

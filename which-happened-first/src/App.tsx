@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { QUESTIONS, type HistoricalEvent } from './data';
+import { rankFor } from './leaderboard';
 import Timer from './components/Timer';
 import EventCard from './components/EventCard';
+import Leaderboard from './components/Leaderboard';
 
 const TOTAL_TIME = 30;
 const NUM_QUESTIONS = QUESTIONS.length;
@@ -20,11 +22,14 @@ function shuffle(events: HistoricalEvent[]): HistoricalEvent[] {
   return arr;
 }
 
-type Phase = 'start' | 'playing' | 'results';
+type Phase = 'start' | 'playing' | 'results' | 'leaderboard';
 type Result = { correct: boolean; points: number; slots: boolean[] };
 
-const btn =
-  'rounded-xl px-6 py-3 font-bold bg-indigo-500 hover:bg-indigo-400 active:scale-95 transition';
+const btnPrimary =
+  'rounded-sm px-6 py-3 font-semibold uppercase tracking-wider text-sm bg-amber-600 hover:bg-amber-500 text-stone-950 transition-colors';
+const btnGhost =
+  'rounded-sm px-6 py-3 text-sm uppercase tracking-wider border border-stone-700 text-stone-300 hover:border-stone-500 hover:text-stone-100 transition-colors';
+const sectionLabel = 'text-xs uppercase tracking-[0.2em] text-stone-500';
 
 export default function App() {
   const [phase, setPhase] = useState<Phase>('start');
@@ -37,6 +42,8 @@ export default function App() {
   const [streak, setStreak] = useState(0);
   const [bestStreak, setBestStreak] = useState(0);
   const [lastResult, setLastResult] = useState<Result | null>(null);
+  const [lastScore, setLastScore] = useState<number | null>(null);
+  const [leaderboardFrom, setLeaderboardFrom] = useState<'start' | 'results'>('start');
 
   const correctOrder = [...QUESTIONS[qIndex]].sort((a, b) => a.year - b.year);
   const revealed = submitted;
@@ -82,64 +89,111 @@ export default function App() {
   }, [timeLeft, phase, submitted]);
 
   const start = () => {
-    setScore(0);
-    setCorrectCount(0);
-    setStreak(0);
-    setBestStreak(0);
-    setQIndex(0);
-    setOrder(shuffle(QUESTIONS[0]));
-    setSubmitted(false);
-    setTimeLeft(TOTAL_TIME);
-    setLastResult(null);
+    setScore(0); setCorrectCount(0); setStreak(0); setBestStreak(0);
+    setQIndex(0); setOrder(shuffle(QUESTIONS[0]));
+    setSubmitted(false); setTimeLeft(TOTAL_TIME); setLastResult(null);
     setPhase('playing');
   };
 
   const next = () => {
     if (qIndex === NUM_QUESTIONS - 1) {
+      setLastScore(score);
       setPhase('results');
       return;
     }
     const ni = qIndex + 1;
     setQIndex(ni);
     setOrder(shuffle(QUESTIONS[ni]));
-    setSubmitted(false);
-    setTimeLeft(TOTAL_TIME);
-    setLastResult(null);
+    setSubmitted(false); setTimeLeft(TOTAL_TIME); setLastResult(null);
+  };
+
+  const openLeaderboard = (from: 'start' | 'results') => {
+    setLeaderboardFrom(from);
+    setPhase('leaderboard');
   };
 
   const shown = revealed ? correctOrder : order;
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100">
+    <div className="min-h-screen bg-stone-950 text-stone-100">
       <div className="max-w-xl mx-auto p-4 sm:p-6">
         {phase === 'start' && (
-          <div className="flex flex-col items-center gap-6 pt-16 text-center">
-            <h1 className="text-4xl font-extrabold">Which Happened First?</h1>
-            <div className="text-slate-300 space-y-2">
-              <p>Put the 4 events in order, earliest at the top, latest at the bottom.</p>
-              <p>You have {TOTAL_TIME} seconds per question.</p>
-              <p>
-                A perfect order scores 100 points plus a time bonus — otherwise 10 points
-                for each correctly placed card.
+          <div className="pt-14">
+            <p className={sectionLabel}>A chronology game</p>
+            <h1 className="font-display text-4xl sm:text-5xl tracking-tight mt-3">Which Happened First?</h1>
+            <p className="text-stone-400 mt-4">Four events. Thirty seconds. Put them in order.</p>
+            <div className="flex gap-3 mt-8">
+              <button type="button" className={btnPrimary} onClick={start}>Start</button>
+              <button type="button" className={btnGhost} onClick={() => openLeaderboard('start')}>
+                Leaderboard
+              </button>
+            </div>
+
+            <div className="border-t border-stone-800 mt-12 pt-10 space-y-10">
+              <section>
+                <p className={sectionLabel}>How it works</p>
+                <div className="grid sm:grid-cols-3 gap-6 mt-4">
+                  {[
+                    'Read the four events',
+                    'Move them with the arrows so the earliest is on top',
+                    'Submit before the clock runs out',
+                  ].map((step, i) => (
+                    <div key={step}>
+                      <div className="font-display text-amber-500 text-lg">{String(i + 1).padStart(2, '0')}</div>
+                      <p className="text-stone-300 text-sm leading-relaxed mt-1">{step}</p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              <section>
+                <p className={sectionLabel}>Scoring</p>
+                <dl className="divide-y divide-stone-800 mt-4 border-y border-stone-800">
+                  {[
+                    ['Perfect order', '100 pts'],
+                    ['Time bonus (perfect order only)', '+1 pt per second left'],
+                    ['Otherwise', '10 pts per card in the right slot'],
+                    ['Maximum per round', '130 pts'],
+                    ['Maximum per game', '1,300 pts'],
+                  ].map(([term, def]) => (
+                    <div key={term} className="flex justify-between py-2.5 text-sm">
+                      <dt className="text-stone-400">{term}</dt>
+                      <dd className="text-stone-100 font-display tabular-nums">{def}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </section>
+
+              <section>
+                <p className={sectionLabel}>What you'll face</p>
+                <p className="text-stone-300 leading-relaxed mt-4 text-sm">
+                  Ten rounds, easy to hard — from the pyramids and the Roman Republic
+                  through the medieval world to the twentieth century. Only the titles
+                  are shown; the dates are revealed after you answer.
+                </p>
+              </section>
+
+              <p className="text-xs text-stone-600">
+                No account needed · Runs entirely in your browser
               </p>
             </div>
-            <button type="button" className={btn} onClick={start}>
-              Start
-            </button>
           </div>
         )}
 
         {phase === 'playing' && (
-          <div className="flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-              <span className="font-semibold">
-                Question {qIndex + 1}/{NUM_QUESTIONS}
+          <div className="flex flex-col gap-4 pt-2">
+            <div className="flex items-end justify-between border-b border-stone-800 pb-4">
+              <span data-testid="question" className="font-display text-lg tabular-nums">
+                Question {String(qIndex + 1).padStart(2, '0')} / {NUM_QUESTIONS}
               </span>
-              <span className="font-semibold">Score: {score}</span>
+              <div className="text-right">
+                <div className="text-stone-500 text-xs uppercase tracking-widest">Score</div>
+                <div data-testid="score" className="font-display text-xl text-amber-500 tabular-nums">{score}</div>
+              </div>
             </div>
             <Timer timeLeft={timeLeft} total={TOTAL_TIME} />
-            <p className="text-sm text-slate-400">Earliest at the top</p>
-            <div className="flex flex-col gap-3">
+            <p className={sectionLabel}>Earliest at the top</p>
+            <div className="flex flex-col gap-2">
               {shown.map((event, i) => (
                 <EventCard
                   key={event.id}
@@ -154,23 +208,31 @@ export default function App() {
               ))}
             </div>
             {!submitted ? (
-              <button type="button" className={`${btn} w-full`} onClick={submit}>
+              <button type="button" className={`${btnPrimary} w-full mt-2`} onClick={submit}>
                 Submit
               </button>
             ) : (
-              <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-4 mt-2">
                 <div
-                  className={`rounded-xl px-4 py-3 text-center font-bold ${
-                    lastResult?.correct
-                      ? 'bg-emerald-500/20 text-emerald-300'
-                      : 'bg-rose-500/20 text-rose-300'
+                  data-testid="result-banner"
+                  className={`border-l-2 pl-4 py-2 ${
+                    lastResult?.correct ? 'border-emerald-500' : 'border-red-500'
                   }`}
                 >
-                  {lastResult?.correct
-                    ? `✓ Correct! +${lastResult.points}`
-                    : `✗ Wrong · +${lastResult?.points}`}
+                  <div
+                    className={`font-semibold ${
+                      lastResult?.correct ? 'text-emerald-400' : 'text-red-400'
+                    }`}
+                  >
+                    {lastResult?.correct ? 'Correct' : 'Incorrect'} — +{lastResult?.points}
+                  </div>
+                  <div className="text-stone-500 text-sm mt-0.5">
+                    {lastResult?.correct
+                      ? `Perfect order · 100 pts + ${lastResult.points - 100} s bonus`
+                      : `${lastResult?.slots.filter(Boolean).length} of ${shown.length} cards in place`}
+                  </div>
                 </div>
-                <button type="button" className={`${btn} w-full`} onClick={next}>
+                <button type="button" className={`${btnPrimary} w-full`} onClick={next}>
                   {qIndex === NUM_QUESTIONS - 1 ? 'See results' : 'Next'}
                 </button>
               </div>
@@ -179,19 +241,41 @@ export default function App() {
         )}
 
         {phase === 'results' && (
-          <div className="flex flex-col items-center gap-6 pt-16 text-center">
-            <h1 className="text-3xl font-extrabold">Results</h1>
-            <div className="text-6xl font-extrabold text-indigo-300">{score}</div>
-            <div className="text-slate-300 space-y-1">
-              <p>
-                {correctCount}/{NUM_QUESTIONS} correct
-              </p>
-              <p>Best streak: {bestStreak}</p>
+          <div className="pt-16">
+            <p className={sectionLabel}>Final score</p>
+            <div data-testid="final-score" className="font-display text-7xl text-amber-500 tabular-nums mt-4">
+              {score.toLocaleString('en-US')}
             </div>
-            <button type="button" className={btn} onClick={start}>
-              Play again
-            </button>
+            <div className="grid grid-cols-3 gap-4 mt-10 border-y border-stone-800 py-5">
+              {([
+                ['Correct', `${correctCount} / ${NUM_QUESTIONS}`, null],
+                ['Best streak', String(bestStreak), null],
+                ['Rank', `#${rankFor(score)}`, 'worldwide'],
+              ] as [string, string, string | null][]).map(([label, value, sub]) => (
+                <div key={label}>
+                  <div className="text-stone-500 text-xs uppercase tracking-widest">{label}</div>
+                  <div className="font-display text-xl text-stone-100 tabular-nums mt-1">
+                    {value}
+                    {sub && <span className="text-xs text-stone-500 ml-1">{sub}</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-3 mt-8">
+              <button type="button" className={btnPrimary} onClick={start}>Play again</button>
+              <button type="button" className={btnGhost} onClick={() => openLeaderboard('results')}>
+                Leaderboard
+              </button>
+            </div>
           </div>
+        )}
+
+        {phase === 'leaderboard' && (
+          <Leaderboard
+            playerScore={lastScore}
+            onBack={() => setPhase(leaderboardFrom)}
+            onPlay={start}
+          />
         )}
       </div>
     </div>

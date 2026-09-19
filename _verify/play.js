@@ -2,16 +2,22 @@ const puppeteer = require('puppeteer-core');
 const fs = require('fs');
 const path = require('path');
 
-// Load QUESTIONS from the app's data.ts (strip the type export, it's plain literals otherwise)
-const dataTs = fs.readFileSync(
-  path.join(__dirname, '..', 'which-happened-first', 'src', 'data.ts'),
-  'utf8'
-);
-const dataJs = dataTs
-  .replace(/export type HistoricalEvent = \{[\s\S]*?\};\n/, '')
-  .replace(/export const QUESTIONS[^=]*=/, 'const QUESTIONS =');
-const { QUESTIONS } = new Function(`${dataJs}; return { QUESTIONS };`)();
+const SRC = path.join(__dirname, '..', 'which-happened-first', 'src');
+
+// Load QUESTIONS and LEADERBOARD from the app source (plain literals; strip type exports)
+function loadTs(file) {
+  const src = fs.readFileSync(path.join(SRC, file), 'utf8');
+  const js = src
+    .replace(/export type [A-Za-z]+ = \{[\s\S]*?\};\n/g, '')
+    .replaceAll('export const', 'const')
+    .replace(/\(score: number\)/, '(score)')
+    .replace(/const (\w+)[^=]*=/g, 'const $1 =');
+  return new Function(`${js}; return { ${file === 'data.ts' ? 'QUESTIONS' : 'LEADERBOARD'} };`)();
+}
+const QUESTIONS = loadTs('data.ts').QUESTIONS;
+const LEADERBOARD = loadTs('leaderboard.ts').LEADERBOARD;
 const correctOrders = QUESTIONS.map((q) => [...q].sort((a, b) => a.year - b.year));
+const rankFor = (score) => LEADERBOARD.filter((p) => p.score > score).length + 1;
 
 const CHROME = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
 const URL = 'http://localhost:5173/';
@@ -23,8 +29,10 @@ const check = (name, cond, extra = '') => {
   if (!cond) failures++;
 };
 
+const tid = (t) => `[data-testid="${t}"]`;
+
 async function getTitles(page) {
-  return page.$$eval('.text-lg.font-semibold', (els) => els.map((e) => e.textContent.trim()));
+  return page.$$eval(tid('card-title'), (els) => els.map((e) => e.textContent.trim()));
 }
 async function clickButtonByText(page, text) {
   const ok = await page.evaluate((t) => {
@@ -35,14 +43,8 @@ async function clickButtonByText(page, text) {
   if (!ok) throw new Error(`button "${text}" not found`);
 }
 async function bannerText(page) {
-  return page.evaluate(() => {
-    const el = document.querySelector(
-      'div[class*="bg-emerald-500/20"], div[class*="bg-rose-500/20"]'
-    );
-    return el ? el.textContent.trim() : null;
-  });
+  return page.$eval(tid('result-banner'), (e) => e.textContent.trim());
 }
-// Sort the on-screen cards into `wantTitles` order using only the Move up buttons
 async function sortTo(page, wantTitles) {
   for (let i = 0; i < wantTitles.length; i++) {
     let cur = await getTitles(page);
@@ -72,10 +74,26 @@ function slotsFor(shown, correct) {
 
   // --- Start screen ---
   check('start screen title', await page.$eval('h1', (e) => e.textContent) === 'Which Happened First?');
+
+  // --- Leaderboard from start ---
+  await clickButtonByText(page, 'Leaderboard');
+  await sleep(250);
+  let rows = await page.$$(tid('leaderboard-row'));
+  check('leaderboard shows 15 rows', rows.length === 15, `${rows.length} rows`);
+  const rowScores = await page.$$eval(tid('leaderboard-row'), (els) =>
+    els.map((e) => parseInt(e.lastElementChild.textContent.replace(/[^0-9]/g, ''), 10)));
+  check('leaderboard rows in descending score order',
+    rowScores.every((s, i) => i === 0 || rowScores[i - 1] >= s),
+    JSON.stringify(rowScores.slice(0, 5)));
+  check('no "You" row before a game', (await page.$(tid('leaderboard-you'))) === null);
+  await clickButtonByText(page, 'Back');
+  await sleep(250);
+  check('Back returns to start screen',
+    await page.$eval('h1', (e) => e.textContent) === 'Which Happened First?');
+
+  // --- Q1: reorder with arrows, sort correctly, submit ---
   await clickButtonByText(page, 'Start');
   await sleep(300);
-
-  // --- Q1: reorder with arrows, then sort correctly, submit ---
   let titles = await getTitles(page);
   check('Q1 shows 4 cards', titles.length === 4);
   const sortedQ1 = correctOrders[0].map((e) => e.title);
@@ -87,7 +105,6 @@ function slotsFor(shown, correct) {
   await sleep(100);
   titles = await getTitles(page);
   check('▼ swaps card 0 and 1', titles[0] === before[1] && titles[1] === before[0]);
-
   check('▲ disabled at index 0', await page.$eval(
     'button[aria-label="Move up"]', (b) => b.disabled));
   check('▼ disabled at last index', await page.$$eval(
@@ -97,21 +114,20 @@ function slotsFor(shown, correct) {
   titles = await getTitles(page);
   check('cards sorted to chronological via ▲', JSON.stringify(titles) === JSON.stringify(sortedQ1));
 
-  const t1 = await page.$eval('span.tabular-nums', (e) => parseInt(e.textContent));
+  const t1 = await page.$eval(tid('timer-seconds'), (e) => parseInt(e.textContent));
   await clickButtonByText(page, 'Submit');
   await sleep(300);
   let banner = await bannerText(page);
-  check('Q1 correct banner', banner === `✓ Correct! +${100 + t1}`, `banner="${banner}" timeLeft=${t1}`);
+  check('Q1 correct banner', banner.startsWith(`Correct — +${100 + t1}`), `banner="${banner}" t=${t1}`);
 
-  // revealed: labels in chronological order, all emerald
-  const labels = await page.$$eval('div.ml-11', (els) => els.map((e) => e.textContent.trim()));
-  check('revealed labels in correct order',
+  const labels = await page.$$eval(tid('card-date'), (els) => els.map((e) => e.textContent.trim()));
+  check('revealed dates in correct order',
     JSON.stringify(labels) === JSON.stringify(correctOrders[0].map((e) => e.label)),
     JSON.stringify(labels));
-  const borderClasses = await page.$$eval('.rounded-xl.bg-slate-800', (els) => els.map((e) => e.className));
-  check('all 4 revealed cards emerald', borderClasses.every((c) => c.includes('border-emerald-500')));
-  check('score header updated',
-    (await page.$eval('body', (e) => e.innerText)).includes(`Score: ${100 + t1}`));
+  const correctness = await page.$$eval(tid('card'), (els) =>
+    els.map((e) => e.getAttribute('data-correct')));
+  check('all 4 cards data-correct=true', correctness.every((c) => c === 'true'));
+  check('score header updated', await page.$eval(tid('score'), (e) => e.textContent.trim()) === String(100 + t1));
 
   let expectedScore = 100 + t1;
   let expectedCorrect = 1;
@@ -121,41 +137,42 @@ function slotsFor(shown, correct) {
   await clickButtonByText(page, 'Next');
   await sleep(300);
 
-  // --- Q2: submit dealt order (guaranteed not all-correct), verify slot scoring ---
+  // --- Q2: submit dealt order (never all-correct), verify slot scoring ---
   titles = await getTitles(page);
   const q2slots = slotsFor(titles, correctOrders[1]);
   const q2pts = 10 * q2slots.filter(Boolean).length;
   await clickButtonByText(page, 'Submit');
   await sleep(300);
   banner = await bannerText(page);
-  check('Q2 wrong banner + slot points', banner === `✗ Wrong · +${q2pts}`,
+  check('Q2 incorrect banner + slot points', banner.startsWith(`Incorrect — +${q2pts}`),
     `banner="${banner}" slots=${q2slots}`);
-  const borders2 = await page.$$eval('.rounded-xl.bg-slate-800', (els) => els.map((e) => e.className));
-  check('Q2 per-slot green/red borders',
-    borders2.every((c, i) => c.includes(q2slots[i] ? 'border-emerald-500' : 'border-rose-500')));
+  const correctness2 = await page.$$eval(tid('card'), (els) =>
+    els.map((e) => e.getAttribute('data-correct')));
+  check('Q2 per-slot data-correct flags',
+    correctness2.every((c, i) => c === String(q2slots[i])), JSON.stringify(correctness2));
   expectedScore += q2pts;
   expectedStreak = 0;
 
   await clickButtonByText(page, 'Next');
   await sleep(300);
 
-  // --- Q3: let the timer auto-submit at 0 ---
+  // --- Q3: timer auto-submits at 0 ---
   titles = await getTitles(page);
   const q3slots = slotsFor(titles, correctOrders[2]);
   const q3pts = 10 * q3slots.filter(Boolean).length;
   console.log('  waiting ~32s for timer auto-submit on Q3...');
   await sleep(32000);
   banner = await bannerText(page);
-  check('Q3 auto-submitted at 0 (wrong, slot points, no time bonus)',
-    banner === `✗ Wrong · +${q3pts}`, `banner="${banner}"`);
-  const timerTxt = await page.$eval('span.tabular-nums', (e) => e.textContent.trim());
-  check('timer shows 0s', timerTxt === '0s', timerTxt);
+  check('Q3 auto-submitted at 0 (no time bonus)', banner.startsWith(`Incorrect — +${q3pts}`),
+    `banner="${banner}"`);
+  check('timer shows 0s',
+    (await page.$eval(tid('timer-seconds'), (e) => e.textContent.trim())) === '0s');
   expectedScore += q3pts;
 
   await clickButtonByText(page, 'Next');
   await sleep(300);
 
-  // --- Q4..Q10: submit dealt order each time, track expected totals ---
+  // --- Q4..Q10: submit dealt order, track totals ---
   for (let q = 3; q < 10; q++) {
     titles = await getTitles(page);
     const slots = slotsFor(titles, correctOrders[q]);
@@ -175,23 +192,39 @@ function slotsFor(shown, correct) {
   }
 
   // --- Results ---
+  const finalScore = await page.$eval(tid('final-score'), (e) => e.textContent.trim());
+  check('results total score matches', finalScore === expectedScore.toLocaleString('en-US'),
+    `page=${finalScore} expected=${expectedScore}`);
   const bodyText = await page.$eval('body', (e) => e.innerText);
-  const resultsScore = await page.evaluate(() => {
-    const el = [...document.querySelectorAll('div')].find((d) => /^\d+$/.test(d.textContent.trim()));
-    return el ? parseInt(el.textContent.trim()) : null;
-  });
-  check('results total score matches', resultsScore === expectedScore,
-    `page=${resultsScore} expected=${expectedScore}`);
-  check('results "N/10 correct"', bodyText.includes(`${expectedCorrect}/10 correct`),
-    `expected ${expectedCorrect}/10`);
-  check('results best streak', bodyText.includes(`Best streak: ${expectedBest}`),
-    `expected ${expectedBest}`);
+  check('results correct count', bodyText.includes(`${expectedCorrect} / 10`),
+    `expected "${expectedCorrect} / 10"`);
+  check('results rank shown', bodyText.includes(`#${rankFor(expectedScore)}`),
+    `expected #${rankFor(expectedScore)}`);
+
+  // --- Leaderboard from results shows the "You" row ---
+  await clickButtonByText(page, 'Leaderboard');
+  await sleep(250);
+  rows = await page.$$(tid('leaderboard-row'));
+  check('leaderboard still 15 rows', rows.length === 15);
+  const youRow = await page.$(tid('leaderboard-you'));
+  check('"You" row present after a game', youRow !== null);
+  if (youRow) {
+    const youText = await page.$eval(tid('leaderboard-you'), (e) => e.textContent.trim());
+    check('"You" row shows right rank',
+      youText.includes(`rank #${rankFor(expectedScore)}`) &&
+      youText.includes(expectedScore.toLocaleString('en-US')),
+      `row="${youText}"`);
+  }
+  await clickButtonByText(page, 'Back');
+  await sleep(250);
+  check('Back returns to results', (await page.$(tid('final-score'))) !== null);
 
   await clickButtonByText(page, 'Play again');
   await sleep(300);
   const replay = await page.$eval('body', (e) => e.innerText);
   check('Play again resets to Q1 with score 0',
-    replay.includes('Question 1/10') && replay.includes('Score: 0'));
+    replay.includes('Question 01 / 10') &&
+    (await page.$eval(tid('score'), (e) => e.textContent.trim())) === '0');
 
   await browser.close();
   console.log(failures === 0 ? '\nALL CHECKS PASSED' : `\n${failures} CHECK(S) FAILED`);

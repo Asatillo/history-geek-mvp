@@ -72,24 +72,16 @@ function slotsFor(shown, correct) {
   page.on('pageerror', (e) => console.log('PAGE ERROR:', e.message));
   await page.goto(URL, { waitUntil: 'networkidle0' });
 
-  // --- Start screen ---
+  // --- Start screen (leaderboard is inline on the landing page) ---
   check('start screen title', await page.$eval('h1', (e) => e.textContent) === 'Which Happened First?');
-
-  // --- Leaderboard from start ---
-  await clickButtonByText(page, 'Leaderboard');
-  await sleep(250);
-  let rows = await page.$$(tid('leaderboard-row'));
-  check('leaderboard shows 15 rows', rows.length === 15, `${rows.length} rows`);
+  const rows = await page.$$(tid('leaderboard-row'));
+  check('leaderboard shows 15 rows on start page', rows.length === 15, `${rows.length} rows`);
   const rowScores = await page.$$eval(tid('leaderboard-row'), (els) =>
     els.map((e) => parseInt(e.lastElementChild.textContent.replace(/[^0-9]/g, ''), 10)));
   check('leaderboard rows in descending score order',
     rowScores.every((s, i) => i === 0 || rowScores[i - 1] >= s),
     JSON.stringify(rowScores.slice(0, 5)));
   check('no "You" row before a game', (await page.$(tid('leaderboard-you'))) === null);
-  await clickButtonByText(page, 'Back');
-  await sleep(250);
-  check('Back returns to start screen',
-    await page.$eval('h1', (e) => e.textContent) === 'Which Happened First?');
 
   // --- Q1: reorder with arrows, sort correctly, submit ---
   await clickButtonByText(page, 'Start');
@@ -201,11 +193,11 @@ function slotsFor(shown, correct) {
   check('results rank shown', bodyText.includes(`#${rankFor(expectedScore)}`),
     `expected #${rankFor(expectedScore)}`);
 
-  // --- Leaderboard from results shows the "You" row ---
-  await clickButtonByText(page, 'Leaderboard');
-  await sleep(250);
-  rows = await page.$$(tid('leaderboard-row'));
-  check('leaderboard still 15 rows', rows.length === 15);
+  // --- "Back to start" → landing shows the leaderboard with the "You" row ---
+  await clickButtonByText(page, 'Back to start');
+  await sleep(300);
+  check('Back to start returns to landing',
+    await page.$eval('h1', (e) => e.textContent) === 'Which Happened First?');
   const youRow = await page.$(tid('leaderboard-you'));
   check('"You" row present after a game', youRow !== null);
   if (youRow) {
@@ -215,11 +207,8 @@ function slotsFor(shown, correct) {
       youText.includes(expectedScore.toLocaleString('en-US')),
       `row="${youText}"`);
   }
-  await clickButtonByText(page, 'Back');
-  await sleep(250);
-  check('Back returns to results', (await page.$(tid('final-score'))) !== null);
 
-  await clickButtonByText(page, 'Play again');
+  await clickButtonByText(page, 'Start');
   await sleep(300);
   const replay = await page.$eval('body', (e) => e.innerText);
   check('Play again resets to Q1 with score 0',

@@ -22,14 +22,14 @@ function shuffle(events: HistoricalEvent[]): HistoricalEvent[] {
   return arr;
 }
 
-type Phase = 'start' | 'playing' | 'results' | 'leaderboard';
+type Phase = 'start' | 'playing' | 'results';
 type Result = { correct: boolean; points: number; slots: boolean[] };
 
 const btnPrimary =
   'rounded-sm px-6 py-3 font-semibold uppercase tracking-wider text-sm bg-amber-600 hover:bg-amber-500 text-stone-950 transition-colors';
 const btnGhost =
-  'rounded-sm px-6 py-3 text-sm uppercase tracking-wider border border-stone-700 text-stone-300 hover:border-stone-500 hover:text-stone-100 transition-colors';
-const sectionLabel = 'text-xs uppercase tracking-[0.2em] text-stone-500';
+  'rounded-sm px-6 py-3 text-sm uppercase tracking-wider border border-stone-600 text-stone-200 hover:border-stone-400 hover:text-stone-100 transition-colors';
+const sectionLabel = 'text-xs uppercase tracking-[0.2em] text-stone-400';
 
 export default function App() {
   const [phase, setPhase] = useState<Phase>('start');
@@ -43,7 +43,6 @@ export default function App() {
   const [bestStreak, setBestStreak] = useState(0);
   const [lastResult, setLastResult] = useState<Result | null>(null);
   const [lastScore, setLastScore] = useState<number | null>(null);
-  const [leaderboardFrom, setLeaderboardFrom] = useState<'start' | 'results'>('start');
 
   const correctOrder = [...QUESTIONS[qIndex]].sort((a, b) => a.year - b.year);
   const revealed = submitted;
@@ -107,29 +106,32 @@ export default function App() {
     setSubmitted(false); setTimeLeft(TOTAL_TIME); setLastResult(null);
   };
 
-  const openLeaderboard = (from: 'start' | 'results') => {
-    setLeaderboardFrom(from);
-    setPhase('leaderboard');
-  };
-
   const shown = revealed ? correctOrder : order;
 
   return (
-    <div className="min-h-screen bg-stone-950 text-stone-100">
+    <div className="min-h-screen bg-stone-900 text-stone-100">
       <div className="max-w-xl mx-auto p-4 sm:p-6">
         {phase === 'start' && (
           <div className="pt-14">
             <p className={sectionLabel}>A chronology game</p>
             <h1 className="font-display text-4xl sm:text-5xl tracking-tight mt-3">Which Happened First?</h1>
-            <p className="text-stone-400 mt-4">Four events. Thirty seconds. Put them in order.</p>
+            <p className="text-stone-300 mt-4">Four events. Thirty seconds. Put them in order.</p>
             <div className="flex gap-3 mt-8">
               <button type="button" className={btnPrimary} onClick={start}>Start</button>
-              <button type="button" className={btnGhost} onClick={() => openLeaderboard('start')}>
+              <button
+                type="button"
+                className={btnGhost}
+                onClick={() =>
+                  document.getElementById('leaderboard')?.scrollIntoView({ behavior: 'smooth' })
+                }
+              >
                 Leaderboard
               </button>
             </div>
 
-            <div className="border-t border-stone-800 mt-12 pt-10 space-y-10">
+            <div className="border-t border-stone-700 mt-12 pt-10 space-y-10">
+              <Leaderboard playerScore={lastScore} />
+
               <section>
                 <p className={sectionLabel}>How it works</p>
                 <div className="grid sm:grid-cols-3 gap-6 mt-4">
@@ -140,7 +142,7 @@ export default function App() {
                   ].map((step, i) => (
                     <div key={step}>
                       <div className="font-display text-amber-500 text-lg">{String(i + 1).padStart(2, '0')}</div>
-                      <p className="text-stone-300 text-sm leading-relaxed mt-1">{step}</p>
+                      <p className="text-stone-200 text-sm leading-relaxed mt-1">{step}</p>
                     </div>
                   ))}
                 </div>
@@ -148,7 +150,7 @@ export default function App() {
 
               <section>
                 <p className={sectionLabel}>Scoring</p>
-                <dl className="divide-y divide-stone-800 mt-4 border-y border-stone-800">
+                <dl className="divide-y divide-stone-700 mt-4 border-y border-stone-700">
                   {[
                     ['Perfect order', '100 pts'],
                     ['Time bonus (perfect order only)', '+1 pt per second left'],
@@ -157,7 +159,7 @@ export default function App() {
                     ['Maximum per game', '1,300 pts'],
                   ].map(([term, def]) => (
                     <div key={term} className="flex justify-between py-2.5 text-sm">
-                      <dt className="text-stone-400">{term}</dt>
+                      <dt className="text-stone-300">{term}</dt>
                       <dd className="text-stone-100 font-display tabular-nums">{def}</dd>
                     </div>
                   ))}
@@ -166,14 +168,14 @@ export default function App() {
 
               <section>
                 <p className={sectionLabel}>What you'll face</p>
-                <p className="text-stone-300 leading-relaxed mt-4 text-sm">
+                <p className="text-stone-200 leading-relaxed mt-4 text-sm">
                   Ten rounds, easy to hard — from the pyramids and the Roman Republic
                   through the medieval world to the twentieth century. Only the titles
                   are shown; the dates are revealed after you answer.
                 </p>
               </section>
 
-              <p className="text-xs text-stone-600">
+              <p className="text-xs text-stone-500">
                 No account needed · Runs entirely in your browser
               </p>
             </div>
@@ -182,12 +184,12 @@ export default function App() {
 
         {phase === 'playing' && (
           <div className="flex flex-col gap-4 pt-2">
-            <div className="flex items-end justify-between border-b border-stone-800 pb-4">
+            <div className="flex items-end justify-between border-b border-stone-700 pb-4">
               <span data-testid="question" className="font-display text-lg tabular-nums">
                 Question {String(qIndex + 1).padStart(2, '0')} / {NUM_QUESTIONS}
               </span>
               <div className="text-right">
-                <div className="text-stone-500 text-xs uppercase tracking-widest">Score</div>
+                <div className="text-stone-400 text-xs uppercase tracking-widest">Score</div>
                 <div data-testid="score" className="font-display text-xl text-amber-500 tabular-nums">{score}</div>
               </div>
             </div>
@@ -226,7 +228,7 @@ export default function App() {
                   >
                     {lastResult?.correct ? 'Correct' : 'Incorrect'} — +{lastResult?.points}
                   </div>
-                  <div className="text-stone-500 text-sm mt-0.5">
+                  <div className="text-stone-400 text-sm mt-0.5">
                     {lastResult?.correct
                       ? `Perfect order · 100 pts + ${lastResult.points - 100} s bonus`
                       : `${lastResult?.slots.filter(Boolean).length} of ${shown.length} cards in place`}
@@ -246,36 +248,28 @@ export default function App() {
             <div data-testid="final-score" className="font-display text-7xl text-amber-500 tabular-nums mt-4">
               {score.toLocaleString('en-US')}
             </div>
-            <div className="grid grid-cols-3 gap-4 mt-10 border-y border-stone-800 py-5">
+            <div className="grid grid-cols-3 gap-4 mt-10 border-y border-stone-700 py-5">
               {([
                 ['Correct', `${correctCount} / ${NUM_QUESTIONS}`, null],
                 ['Best streak', String(bestStreak), null],
                 ['Rank', `#${rankFor(score)}`, 'worldwide'],
               ] as [string, string, string | null][]).map(([label, value, sub]) => (
                 <div key={label}>
-                  <div className="text-stone-500 text-xs uppercase tracking-widest">{label}</div>
+                  <div className="text-stone-400 text-xs uppercase tracking-widest">{label}</div>
                   <div className="font-display text-xl text-stone-100 tabular-nums mt-1">
                     {value}
-                    {sub && <span className="text-xs text-stone-500 ml-1">{sub}</span>}
+                    {sub && <span className="text-xs text-stone-400 ml-1">{sub}</span>}
                   </div>
                 </div>
               ))}
             </div>
             <div className="flex gap-3 mt-8">
               <button type="button" className={btnPrimary} onClick={start}>Play again</button>
-              <button type="button" className={btnGhost} onClick={() => openLeaderboard('results')}>
-                Leaderboard
+              <button type="button" className={btnGhost} onClick={() => setPhase('start')}>
+                Back to start
               </button>
             </div>
           </div>
-        )}
-
-        {phase === 'leaderboard' && (
-          <Leaderboard
-            playerScore={lastScore}
-            onBack={() => setPhase(leaderboardFrom)}
-            onPlay={start}
-          />
         )}
       </div>
     </div>

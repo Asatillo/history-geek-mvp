@@ -13,9 +13,9 @@ type Props = {
 export default function EventCard({ event, index, total, revealed, correct, onUp, onDown }: Props) {
   const revealStyle = revealed
     ? correct
-      ? 'border-emerald-600 bg-emerald-950/50'
-      : 'border-red-700 bg-red-950/50'
-    : 'border-stone-800 bg-stone-900';
+      ? 'border-emerald-600 bg-emerald-900/40'
+      : 'border-red-700 bg-red-900/40'
+    : 'border-stone-700 bg-stone-800';
 
   const arrow = (dir: -1 | 1, disabled: boolean, label: string) => (
     <button
@@ -28,8 +28,8 @@ export default function EventCard({ event, index, total, revealed, correct, onUp
       }`}
     >
       <span
-        className={`w-10 h-10 flex items-center justify-center border border-stone-800 rounded-sm text-stone-400 text-sm ${
-          disabled ? '' : 'group-hover:text-stone-100 group-hover:border-stone-600'}`}
+        className={`w-10 h-10 flex items-center justify-center border border-stone-600 rounded-sm text-stone-300 text-sm ${
+          disabled ? '' : 'group-hover:text-stone-50 group-hover:border-stone-400'}`}
       >{dir === -1 ? '▲' : '▼'}</span>
     </button>
   );
@@ -40,7 +40,7 @@ export default function EventCard({ event, index, total, revealed, correct, onUp
       data-correct={revealed ? String(Boolean(correct)) : undefined}
       className={`rounded-md border px-4 py-3 transition-colors duration-300 flex items-center gap-4 ${revealStyle}`}
     >
-      <div className="font-display text-stone-500 text-lg w-6 shrink-0 tabular-nums">
+      <div className="font-display text-stone-400 text-lg w-6 shrink-0 tabular-nums">
         {index + 1}
       </div>
       <div className="flex-1 min-w-0">

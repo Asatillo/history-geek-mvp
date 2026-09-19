@@ -91,8 +91,8 @@ async function clickButtonByText(page, text) {
   await sleep(400);
   await page.screenshot({ path: path.join(OUT, 'results.png'), fullPage: true });
 
-  // Leaderboard (with "You" row)
-  await clickButtonByText(page, 'Leaderboard');
+  // Leaderboard = start page after a game (with "You" row)
+  await clickButtonByText(page, 'Back to start');
   await sleep(300);
   await page.screenshot({ path: path.join(OUT, 'leaderboard.png'), fullPage: true });
 
